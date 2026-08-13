@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Kayanne Nascimento</title>
+    <link rel="stylesheet" href="projeto.css">
+</head>
+<body>
+
+    <div class="page-center">
+        <div class="auth-card glow-card">
+            <div class="glow-card__inner auth-card__inner">
+
+                <a href="projeto.html" class="back-link">← Voltar para a Vitrine</a>
+
+                <h2 id="tituloForm">Acessar Conta</h2>
+
+                <form id="formLogin">
+                    <div class="form-group">
+                        <label>E-mail</label>
+                        <input type="email" id="email" required placeholder="Seu e-mail">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Senha</label>
+                        <input type="password" id="senha" required placeholder="Sua senha">
+                    </div>
+
+                    <button type="submit" id="btnAcao" class="btn btn-primary">
+                        Entrar
+                    </button>
+                </form>
+
+                <p id="mensagemStatus" class="status-msg"></p>
+
+                <div class="alt-action">
+                    <p id="textoAlternativo">
+                        Não tem uma conta? <a href="#" id="linkAlternar">Criar Conta</a>
+                    </p>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- SCRIPTS DO SUPABASE -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        const SUPABASE_URL = 'https://sfwuyndcnomzuuzzmbhl.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNmd3V5bmRjbm9tenV1enptYmhsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY1NjY1ODIsImV4cCI6MjEwMjE0MjU4Mn0.Q-8v7OD6xCmmifMZ5AiBOebWz3khv9kHTKmmmhzzXA0';
+        const clienteSupabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        const EMAILS_ADMIN = ['marcoaandre7@gmail.com', 'kayannesousanasc@gmail.com'];
+        let modoCadastro = false;
+
+        const tituloForm = document.querySelector("#tituloForm");
+        const btnAcao = document.querySelector("#btnAcao");
+        const textoAlternativo = document.querySelector("#textoAlternativo");
+        const formLogin = document.querySelector("#formLogin");
+        const mensagemStatus = document.querySelector("#mensagemStatus");
+
+        document.body.addEventListener("click", (e) => {
+            if (e.target && e.target.id === "linkAlternar") {
+                e.preventDefault();
+                modoCadastro = !modoCadastro;
+
+                if (modoCadastro) {
+                    tituloForm.innerText = "Criar Nova Conta";
+                    btnAcao.innerText = "Cadastrar";
+                    textoAlternativo.innerHTML = `Já tem uma conta? <a href="#" id="linkAlternar">Fazer Login</a>`;
+                } else {
+                    tituloForm.innerText = "Acessar Conta";
+                    btnAcao.innerText = "Entrar";
+                    textoAlternativo.innerHTML = `Não tem uma conta? <a href="#" id="linkAlternar">Criar Conta</a>`;
+                }
+                mensagemStatus.innerText = "";
+            }
+        });
+
+        formLogin.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const email = document.querySelector("#email").value.trim();
+            const senha = document.querySelector("#senha").value;
+
+            mensagemStatus.innerText = "Processando...";
+            mensagemStatus.style.color = "#94a3b8";
+
+            if (modoCadastro) {
+                const { data, error } = await clienteSupabase.auth.signUp({ email, password: senha });
+                if (error) {
+                    mensagemStatus.style.color = "#fb7185";
+                    mensagemStatus.innerText = "Erro ao cadastrar: " + error.message;
+                } else {
+                    mensagemStatus.style.color = "#38bdf8";
+                    mensagemStatus.innerText = "Conta criada com sucesso! Faça login agora.";
+                    setTimeout(() => window.location.reload(), 2000);
+                }
+            } else {
+                const { data, error } = await clienteSupabase.auth.signInWithPassword({ email, password: senha });
+                if (error) {
+                    mensagemStatus.style.color = "#fb7185";
+                    mensagemStatus.innerText = "E-mail ou senha incorretos.";
+                } else {
+                    mensagemStatus.style.color = "#38bdf8";
+                    mensagemStatus.innerText = "Login realizado! Redirecionando...";
+
+                    const usuario = data.user || (data.session ? data.session.user : null);
+                    const emailUsuario = usuario && usuario.email ? usuario.email.trim().toLowerCase() : "";
+
+                    setTimeout(() => {
+                        if (EMAILS_ADMIN.includes(emailUsuario)) {
+                            window.location.href = "admin.html";
+                        } else {
+                            window.location.href = "projeto.html";
+                        }
+                    }, 1000);
+                }
+            }
+        });
+    </script>
+</body>
+</html>

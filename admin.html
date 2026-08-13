@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel Admin - Kayanne Nascimento</title>
+    <link rel="stylesheet" href="projeto.css">
+</head>
+<body>
+
+    <div class="admin-topbar">
+        <a href="projeto.html" class="btn btn-outline btn-sm">← Voltar para a Vitrine</a>
+        <button id="btnSairAdmin" class="btn btn-danger btn-sm">Sair da Conta</button>
+    </div>
+
+    <header class="site-header" style="margin-bottom: 30px;">
+        <div class="eyebrow">⚙ Área restrita</div>
+        <h1 style="font-size: clamp(1.8rem, 3.5vw, 2.4rem);">Painel Administrativo</h1>
+        <p class="subtitle" style="text-transform: none; letter-spacing: normal;">Cadastre novos projetos ou gerencie os existentes</p>
+    </header>
+
+    <!-- FORMULÁRIO DE CADASTRO -->
+    <section>
+        <div class="glow-card">
+            <div class="glow-card__inner panel">
+                <h2 class="section-title"><span class="mark">+</span> Cadastrar Novo Projeto</h2>
+
+                <form id="formCadastro">
+                    <div class="form-group">
+                        <label>Título</label>
+                        <input type="text" id="titulo" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Categoria</label>
+                        <input type="text" id="categoria" placeholder="Ex: Residencial, Comercial" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Imagens do Projeto</label>
+                        <div id="listaImagens" class="image-inputs-list">
+                            <div class="image-input-row">
+                                <input type="text" class="img-url-input" placeholder="Cole o link da imagem">
+                                <button type="button" class="btn-remove-img" onclick="removerLinhaImagem(this)" title="Remover">✕</button>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-outline btn-sm" onclick="adicionarLinhaImagem()">+ Adicionar outra imagem</button>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Descrição</label>
+                        <textarea id="descricao" rows="5" placeholder="Conte os detalhes do projeto: conceito, materiais, área, desafios..." required></textarea>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">
+                        Salvar Projeto
+                    </button>
+                </form>
+                <p id="mensagemStatus" class="status-msg"></p>
+            </div>
+        </div>
+    </section>
+
+    <div class="panel-spacer"></div>
+
+    <!-- GERENCIAMENTO / EXCLUSÃO -->
+    <section>
+        <div class="glow-card">
+            <div class="glow-card__inner panel">
+                <h2 class="section-title"><span class="mark">▤</span> Projetos Cadastrados</h2>
+                <div id="containerAdminProjetos">
+                    <p class="empty-state">Carregando gerenciamento...</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SCRIPTS -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        const SUPABASE_URL = 'https://sfwuyndcnomzuuzzmbhl.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNmd3V5bmRjbm9tenV1enptYmhsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY1NjY1ODIsImV4cCI6MjEwMjE0MjU4Mn0.Q-8v7OD6xCmmifMZ5AiBOebWz3khv9kHTKmmmhzzXA0';
+        const clienteSupabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        const EMAILS_ADMIN = ['marcoaandre7@gmail.com', 'kayannesousanasc@gmail.com'];
+
+        async function verificarAcessoAdmin() {
+            try {
+                const { data: { session }, error } = await clienteSupabase.auth.getSession();
+
+                if (error || !session || !session.user) {
+                    window.location.href = "login.html";
+                    return;
+                }
+
+                const emailUsuario = session.user.email ? session.user.email.trim().toLowerCase() : "";
+
+                if (!EMAILS_ADMIN.includes(emailUsuario)) {
+                    alert("Acesso restrito apenas para administradores!");
+                    window.location.href = "projeto.html";
+                    return;
+                }
+
+                carregarProjetosAdmin();
+            } catch (err) {
+                window.location.href = "login.html";
+            }
+        }
+
+        async function carregarProjetosAdmin() {
+            const container = document.querySelector("#containerAdminProjetos");
+            if (!container) return;
+
+            const { data: projetos, error } = await clienteSupabase
+                .from('projeto')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                container.innerHTML = `<p style="color: #fb7185;">Erro ao carregar projetos.</p>`;
+                return;
+            }
+
+            if (!projetos || projetos.length === 0) {
+                container.innerHTML = `<p class="empty-state">Nenhum projeto cadastrado.</p>`;
+                return;
+            }
+
+            container.innerHTML = `<div class="admin-item-list"></div>`;
+            const lista = container.querySelector(".admin-item-list");
+
+            projetos.forEach(proj => {
+                const fotos = (proj.imagens && proj.imagens.length > 0) ? proj.imagens : (proj.imagem ? [proj.imagem] : []);
+                const capa = fotos[0] || 'https://via.placeholder.com/100x100?text=Sem+Foto';
+                const qtdFotos = fotos.length;
+
+                const item = document.createElement("div");
+                item.className = "admin-item";
+
+                item.innerHTML = `
+                    <img src="${capa}" class="admin-item-thumb" alt="${proj.titulo}">
+                    <div class="info">
+                        <strong>${proj.titulo}</strong>
+                        <span>${proj.categoria || 'Geral'} · ${qtdFotos} ${qtdFotos === 1 ? 'imagem' : 'imagens'}</span>
+                    </div>
+                    <button onclick="deletarProjeto('${proj.id}')" class="btn btn-danger btn-sm">
+                        Excluir
+                    </button>
+                `;
+                lista.appendChild(item);
+            });
+        }
+
+        // --- Campos dinâmicos de imagem ---
+        function adicionarLinhaImagem() {
+            const lista = document.querySelector("#listaImagens");
+            const linha = document.createElement("div");
+            linha.className = "image-input-row";
+            linha.innerHTML = `
+                <input type="text" class="img-url-input" placeholder="Cole o link da imagem">
+                <button type="button" class="btn-remove-img" onclick="removerLinhaImagem(this)" title="Remover">✕</button>
+            `;
+            lista.appendChild(linha);
+        }
+
+        function removerLinhaImagem(botao) {
+            const linha = botao.closest(".image-input-row");
+            const lista = document.querySelector("#listaImagens");
+            if (lista.children.length > 1) {
+                linha.remove();
+            } else {
+                linha.querySelector(".img-url-input").value = "";
+            }
+        }
+
+        document.querySelector("#formCadastro").addEventListener("submit", async (e) => {
+            e.preventDefault();
+
+            const titulo = document.querySelector("#titulo").value;
+            const categoria = document.querySelector("#categoria").value;
+            const descricao = document.querySelector("#descricao").value;
+            const status = document.querySelector("#mensagemStatus");
+
+            const imagens = Array.from(document.querySelectorAll(".img-url-input"))
+                .map(input => input.value.trim())
+                .filter(url => url.length > 0);
+
+            if (imagens.length === 0) {
+                status.style.color = "#fb7185";
+                status.innerText = "Adicione pelo menos uma imagem.";
+                return;
+            }
+
+            const { error } = await clienteSupabase
+                .from('projeto')
+                .insert([{ titulo, categoria, imagens, descricao }]);
+
+            if (error) {
+                status.style.color = "#fb7185";
+                status.innerText = "Erro ao cadastrar: " + error.message;
+            } else {
+                status.style.color = "#38bdf8";
+                status.innerText = "Projeto cadastrado com sucesso!";
+                document.querySelector("#formCadastro").reset();
+                document.querySelector("#listaImagens").innerHTML = `
+                    <div class="image-input-row">
+                        <input type="text" class="img-url-input" placeholder="Cole o link da imagem">
+                        <button type="button" class="btn-remove-img" onclick="removerLinhaImagem(this)" title="Remover">✕</button>
+                    </div>
+                `;
+                carregarProjetosAdmin();
+            }
+        });
+
+        async function deletarProjeto(id) {
+            if (!confirm("Tem certeza que deseja excluir este projeto?")) return;
+
+            const { error } = await clienteSupabase
+                .from('projeto')
+                .delete()
+                .eq('id', id);
+
+            if (error) {
+                alert("Erro ao excluir: " + error.message);
+            } else {
+                alert("Projeto excluído com sucesso!");
+                carregarProjetosAdmin();
+            }
+        }
+
+        document.querySelector("#btnSairAdmin").addEventListener("click", async () => {
+            await clienteSupabase.auth.signOut();
+            window.location.href = "login.html";
+        });
+
+        verificarAcessoAdmin();
+    </script>
+</body>
+</html>

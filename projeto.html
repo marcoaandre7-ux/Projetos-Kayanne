@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="projeto.css">
+    <title>Kayanne Nascimento - Arquitetura & Urbanismo</title>
+</head>
+<body>
+
+    <!-- CABEÇALHO -->
+    <header class="site-header">
+        <div class="eyebrow">✎ Arquitetura & Urbanismo</div>
+        <h1>Kayanne Nascimento</h1>
+        <p class="subtitle">Projetos residenciais & interiores</p>
+
+        <!-- Barra de controle do usuário -->
+        <div class="account-bar">
+            <a id="linkAdmin" href="admin.html" class="btn btn-outline btn-sm" style="display: none;">
+                ⚙ Painel Admin
+            </a>
+            <a id="linkLogin" href="login.html" class="btn btn-outline btn-sm">
+                🔑 Entrar / Login
+            </a>
+            <button id="btnSair" class="btn btn-outline btn-sm" style="display: none;">Sair da Conta</button>
+        </div>
+    </header>
+
+    <hr>
+
+    <!-- SOBRE MIM -->
+    <section>
+        <h2 class="section-title"><span class="mark">✎</span> Sobre mim</h2>
+        <p class="section-lead">Estudante de Arquitetura & Urbanismo com foco em projetos residenciais e interiores.</p>
+    </section>
+
+    <hr>
+
+    <!-- MEUS PROJETOS -->
+    <section>
+        <h2 class="section-title"><span class="mark">▣</span> Portfólio de Projetos</h2>
+        <p class="section-lead">Uma seleção dos projetos mais recentes, do conceito à entrega.</p>
+        <div id="containerProjetos" class="projetos-grid">
+            <p class="empty-state">Carregando projetos...</p>
+        </div>
+    </section>
+
+    <!-- MODAL DE PROJETO -->
+    <div id="modalOverlay" class="modal-overlay">
+        <div class="modal-panel glow-card">
+            <div class="glow-card__inner modal-body">
+                <button class="modal-close" onclick="fecharModal()" aria-label="Fechar">✕</button>
+
+                <div class="modal-gallery">
+                    <img id="modalImagemPrincipal" src="" alt="">
+                    <button class="modal-nav modal-nav-prev" onclick="mudarFoto(-1)" aria-label="Foto anterior">‹</button>
+                    <button class="modal-nav modal-nav-next" onclick="mudarFoto(1)" aria-label="Próxima foto">›</button>
+                </div>
+
+                <div id="modalThumbs" class="modal-thumbs"></div>
+
+                <div class="modal-info">
+                    <span id="modalBadge" class="badge"></span>
+                    <h2 id="modalTitulo"></h2>
+                    <p id="modalDescricao" class="modal-desc"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <hr>
+
+    <!-- CONTATO -->
+    <section>
+        <h2 class="section-title"><span class="mark">✉</span> Entre em contato</h2>
+        <p class="section-lead">Envie sua mensagem:</p>
+        <div class="contact-row">
+            <input type="text" id="campoMensagem" placeholder="Ex: gostaria de fazer um orçamento">
+            <button onclick="enviarMensagem()" class="btn btn-primary">Enviar</button>
+        </div>
+        <p id="respostaMensagem" class="status-msg"></p>
+    </section>
+
+    <!-- SCRIPTS -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        const SUPABASE_URL = 'https://sfwuyndcnomzuuzzmbhl.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNmd3V5bmRjbm9tenV1enptYmhsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY1NjY1ODIsImV4cCI6MjEwMjE0MjU4Mn0.Q-8v7OD6xCmmifMZ5AiBOebWz3khv9kHTKmmmhzzXA0';
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        // Lista oficial de Administradores
+        const EMAILS_ADMIN = ['marcoaandre7@gmail.com', 'kayannesousanasc@gmail.com'];
+
+        async function inicializarPagina() {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+
+            const linkAdmin = document.querySelector("#linkAdmin");
+            const linkLogin = document.querySelector("#linkLogin");
+            const btnSair = document.querySelector("#btnSair");
+
+            if (session && session.user) {
+                const emailUsuario = session.user.email ? session.user.email.trim().toLowerCase() : '';
+
+                if (EMAILS_ADMIN.includes(emailUsuario)) {
+                    if (linkAdmin) linkAdmin.style.display = "inline-flex";
+                } else {
+                    if (linkAdmin) linkAdmin.style.display = "none";
+                }
+
+                if (linkLogin) linkLogin.style.display = "none";
+                if (btnSair) {
+                    btnSair.style.display = "inline-flex";
+                    btnSair.onclick = async () => {
+                        await supabaseClient.auth.signOut();
+                        window.location.reload();
+                    };
+                }
+            } else {
+                if (linkAdmin) linkAdmin.style.display = "none";
+                if (linkLogin) linkLogin.style.display = "inline-flex";
+                if (btnSair) btnSair.style.display = "none";
+            }
+
+            carregarProjetos();
+        }
+
+        let todosProjetos = [];
+        let projetoAtualIndex = 0;
+        let fotoAtualIndex = 0;
+
+        async function carregarProjetos() {
+            const container = document.querySelector("#containerProjetos");
+
+            const { data: projetos, error } = await supabaseClient
+                .from('projeto')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                container.innerHTML = `<p class="empty-state" style="color:#fb7185;">Erro ao carregar os projetos: ${error.message}</p>`;
+                return;
+            }
+
+            if (!projetos || projetos.length === 0) {
+                container.innerHTML = `<p class="empty-state">Nenhum projeto cadastrado.</p>`;
+                return;
+            }
+
+            todosProjetos = projetos;
+            container.innerHTML = "";
+
+            projetos.forEach((proj, index) => {
+                const fotos = obterFotos(proj);
+                const capa = fotos[0] || 'https://via.placeholder.com/600x400?text=Sem+Imagem';
+
+                const wrapper = document.createElement("div");
+                wrapper.className = "card-projeto glow-card";
+                wrapper.style.cursor = "pointer";
+                wrapper.onclick = () => abrirModal(index);
+
+                wrapper.innerHTML = `
+                    <div class="glow-card__inner">
+                        <img src="${capa}" alt="${proj.titulo}">
+                        <div class="card-body">
+                            <span class="badge">${proj.categoria || 'Geral'}</span>
+                            <h3>${proj.titulo}</h3>
+                            <p class="descricao">${proj.descricao}</p>
+                        </div>
+                    </div>
+                `;
+
+                container.appendChild(wrapper);
+            });
+        }
+
+        function obterFotos(proj) {
+            if (proj.imagens && proj.imagens.length > 0) return proj.imagens;
+            if (proj.imagem) return [proj.imagem];
+            return [];
+        }
+
+        // --- Modal / Galeria ---
+        function abrirModal(index) {
+            projetoAtualIndex = index;
+            fotoAtualIndex = 0;
+            renderizarModal();
+            document.querySelector("#modalOverlay").classList.add("aberto");
+            document.body.style.overflow = "hidden";
+        }
+
+        function fecharModal() {
+            document.querySelector("#modalOverlay").classList.remove("aberto");
+            document.body.style.overflow = "";
+        }
+
+        function mudarFoto(direcao) {
+            const fotos = obterFotos(todosProjetos[projetoAtualIndex]);
+            if (fotos.length === 0) return;
+            fotoAtualIndex = (fotoAtualIndex + direcao + fotos.length) % fotos.length;
+            renderizarModal();
+        }
+
+        function renderizarModal() {
+            const proj = todosProjetos[projetoAtualIndex];
+            if (!proj) return;
+            const fotos = obterFotos(proj);
+            const fotoAtual = fotos[fotoAtualIndex] || 'https://via.placeholder.com/800x500?text=Sem+Imagem';
+
+            document.querySelector("#modalImagemPrincipal").src = fotoAtual;
+            document.querySelector("#modalImagemPrincipal").alt = proj.titulo;
+            document.querySelector("#modalBadge").innerText = proj.categoria || 'Geral';
+            document.querySelector("#modalTitulo").innerText = proj.titulo;
+            document.querySelector("#modalDescricao").innerText = proj.descricao;
+
+            const nav = document.querySelectorAll(".modal-nav");
+            nav.forEach(btn => btn.style.display = fotos.length > 1 ? "flex" : "none");
+
+            const thumbsContainer = document.querySelector("#modalThumbs");
+            thumbsContainer.innerHTML = "";
+            if (fotos.length > 1) {
+                fotos.forEach((foto, i) => {
+                    const thumb = document.createElement("img");
+                    thumb.src = foto;
+                    thumb.className = "modal-thumb" + (i === fotoAtualIndex ? " ativo" : "");
+                    thumb.onclick = () => { fotoAtualIndex = i; renderizarModal(); };
+                    thumbsContainer.appendChild(thumb);
+                });
+            }
+        }
+
+        document.querySelector("#modalOverlay").addEventListener("click", (e) => {
+            if (e.target.id === "modalOverlay") fecharModal();
+        });
+
+        document.addEventListener("keydown", (e) => {
+            if (!document.querySelector("#modalOverlay").classList.contains("aberto")) return;
+            if (e.key === "Escape") fecharModal();
+            if (e.key === "ArrowLeft") mudarFoto(-1);
+            if (e.key === "ArrowRight") mudarFoto(1);
+        });
+
+        function enviarMensagem() {
+            const campo = document.querySelector("#campoMensagem");
+            const resposta = document.querySelector("#respostaMensagem");
+
+            if (!campo.value.trim()) {
+                alert("Digite uma mensagem primeiro!");
+                return;
+            }
+
+            resposta.style.color = "#38bdf8";
+            resposta.innerText = "Mensagem enviada com sucesso!";
+            campo.value = "";
+        }
+
+        inicializarPagina();
+    </script>
+</body>
+</html>
